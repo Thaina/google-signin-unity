@@ -9,5 +9,5 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential;
 public interface IListener extends OnCanceledListener, OnFailureListener
 {
     void onAuthenticated(GoogleIdTokenCredential acct);
-    void onAuthorized(AuthorizationResult acct);
+    void onAuthorized(SignInResultWrapper acct);
 }

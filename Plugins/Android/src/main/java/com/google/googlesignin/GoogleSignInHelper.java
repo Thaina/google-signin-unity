@@ -15,6 +15,10 @@
  */
 package com.google.googlesignin;
 
+import android.content.IntentSender;
+import android.content.Intent;
+import android.app.PendingIntent;
+import android.os.Bundle;
 import android.os.CancellationSignal;
 import android.util.Log;
 
@@ -28,6 +32,14 @@ import androidx.credentials.GetCredentialResponse;
 import androidx.credentials.exceptions.ClearCredentialException;
 import androidx.credentials.exceptions.GetCredentialException;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+
+import com.google.android.gms.common.api.Status;
+import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.auth.api.signin.GoogleSignInResult;
+import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.auth.api.identity.AuthorizationRequest;
 import com.google.android.gms.auth.api.identity.AuthorizationResult;
 import com.google.android.gms.auth.api.identity.Identity;
@@ -37,6 +49,7 @@ import com.google.android.gms.common.api.Scope;
 import com.google.android.gms.common.util.Strings;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.SuccessContinuation;
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.TaskCompletionSource;
@@ -51,6 +64,8 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
+
+import com.google.googlesignin.GoogleSignInActivity;
 
 /**
  * Helper class used by the native C++ code to interact with Google Sign-in API.
@@ -69,6 +84,7 @@ public class GoogleSignInHelper {
     loggingEnabled = flag;
   }
 
+  public static IListener requestHandle;
   private static CancellationSignal cancellationSignal;
   private static Task<AuthorizationResult> task;
   private static Function<Boolean, Task<AuthorizationResult>> signInFunction;
@@ -225,7 +241,7 @@ public class GoogleSignInHelper {
         }).addOnFailureListener(requestHandle).addOnCanceledListener(requestHandle).addOnSuccessListener(new OnSuccessListener<AuthorizationResult>() {
           @Override
           public void onSuccess(AuthorizationResult authorizationResult) {
-            requestHandle.onAuthorized(authorizationResult);
+            processAuthorizationResult(authorizationResult, requestHandle);
           }
         }).addOnCompleteListener(new OnCompleteListener<AuthorizationResult>() {
           @Override
@@ -235,6 +251,79 @@ public class GoogleSignInHelper {
         });
       }
     };
+  }
+
+  // Method to process the AuthorizationResult and convert it to SignInResultWrapper
+    public static void processAuthorizationResult(AuthorizationResult authorizationResult, IListener requestHandle) {
+        logDebug("Processing authorization result...");
+
+        String serverAuthCode = authorizationResult.getServerAuthCode();
+        if (serverAuthCode != null) 
+        {
+            logDebug("Server Auth Code: " + serverAuthCode);
+            SignInResultWrapper wrappedResult = new SignInResultWrapper(authorizationResult.getServerAuthCode());
+            requestHandle.onAuthorized(wrappedResult);
+        } 
+        else 
+        {
+            logDebug("No Server Auth Code returned.");
+        }
+
+        if (authorizationResult.hasResolution()) 
+        {
+            PendingIntent pendingIntent = authorizationResult.getPendingIntent();
+            if (pendingIntent != null) 
+            {
+                try 
+                {
+                    Intent signInIntent = new Intent(UnityPlayer.currentActivity, GoogleSignInActivity.class);
+                    signInIntent.putExtra("pendingIntent", pendingIntent);
+                    UnityPlayer.currentActivity.startActivity(signInIntent);
+                    logDebug("Started GoogleSignInActivity with PendingIntent.");
+                } 
+                catch (Exception e) 
+                {
+                    logError("Failed to launch GoogleSignInActivity: " + e.getMessage());
+                }
+            } 
+            else 
+            {
+                logDebug("PendingIntent is null, even though hasResolution() is true.");
+            }
+        } 
+        else 
+        {
+            logDebug("No resolution required.");
+        }
+    }
+
+  // Method to handle sign-in results
+  public static void handleSignInResult(int resultCode, Intent data) {
+    logDebug("Handling sign-in result with resultCode: " + resultCode);
+
+    if (resultCode == GoogleSignInActivity.RESULT_OK && data != null) {
+        logDebug("Sign-in successful, processing result.");
+
+        Bundle extras = data.getExtras();
+        if (extras != null) {
+            logDebug("Intent has the following extras:");
+            for (String key : extras.keySet()) {
+                Object value = extras.get(key);
+                
+                if (value != null) {
+                    // Get the type of the extra
+                    String className = value.getClass().getName();
+                    logDebug("Key: " + key + ", Value: " + value + ", Type: " + className);
+                } else {
+                    logDebug("Key: " + key + " has null value.");
+                }
+            }
+        } else {
+            logDebug("Intent has no extras.");
+        }
+    } else {
+        logError("Sign-in failed or canceled, no data received.");
+    }
   }
 
   public static Task<AuthorizationResult> signIn() {

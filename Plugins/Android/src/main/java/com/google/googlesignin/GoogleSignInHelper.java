@@ -21,6 +21,7 @@ import android.app.PendingIntent;
 import android.os.Bundle;
 import android.os.CancellationSignal;
 import android.util.Log;
+import android.util.Base64;
 
 import androidx.annotation.NonNull;
 import androidx.credentials.ClearCredentialStateRequest;
@@ -34,6 +35,7 @@ import androidx.credentials.exceptions.GetCredentialException;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.lang.reflect.Method;
 
 import com.google.android.gms.common.api.Status;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
@@ -299,32 +301,48 @@ public class GoogleSignInHelper {
 
   // Method to handle sign-in results
   public static void handleSignInResult(int resultCode, Intent data) {
-    logDebug("Handling sign-in result with resultCode: " + resultCode);
-
-    if (resultCode == GoogleSignInActivity.RESULT_OK && data != null) {
-        logDebug("Sign-in successful, processing result.");
-
-        Bundle extras = data.getExtras();
-        if (extras != null) {
-            logDebug("Intent has the following extras:");
-            for (String key : extras.keySet()) {
-                Object value = extras.get(key);
-                
-                if (value != null) {
-                    // Get the type of the extra
-                    String className = value.getClass().getName();
-                    logDebug("Key: " + key + ", Value: " + value + ", Type: " + className);
-                } else {
-                    logDebug("Key: " + key + " has null value.");
-                }
-            }
-        } else {
-            logDebug("Intent has no extras.");
-        }
-    } else {
-        logError("Sign-in failed or canceled, no data received.");
-    }
+      logDebug("Handling sign-in result with resultCode: " + resultCode);
+  
+      if (resultCode == GoogleSignInActivity.RESULT_OK && data != null) {
+          logDebug("Sign-in successful, inspecting Intent extras.");
+  
+          Bundle extras = data.getExtras();
+          if (extras != null) {
+              for (String key : extras.keySet()) {
+                  Object value = extras.get(key);
+  
+                  if (key.equals("authorization_result") && value instanceof byte[]) 
+                  {
+                      byte[] authResultBytes = (byte[]) value;
+                      printByteArray(authResultBytes);
+                  } 
+                  else 
+                  {
+                      logDebug("Key: " + key + " has value of type: " + (value != null ? value.getClass().getName() : "null"));
+                  }
+              }
+          } else {
+              logDebug("Intent has no extras.");
+          }
+      } else {
+          logError("Sign-in failed or canceled, no data received.");
+      }
   }
+
+  public static void printByteArray(byte[] byteArray) {
+      if (byteArray == null || byteArray.length == 0) {
+          logDebug("Byte array is empty or null.");
+          return;
+      }
+      
+      StringBuilder byteStringBuilder = new StringBuilder();
+      for (byte b : byteArray) {
+          byteStringBuilder.append(String.format("%02X ", b));  // Convert byte to hex
+      }
+      
+      logDebug("Byte array contents: " + byteStringBuilder.toString());
+  }
+
 
   public static Task<AuthorizationResult> signIn() {
     task = signInFunction.apply(false);

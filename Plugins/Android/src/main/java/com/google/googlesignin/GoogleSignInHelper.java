@@ -33,6 +33,9 @@ import androidx.credentials.GetCredentialResponse;
 import androidx.credentials.exceptions.ClearCredentialException;
 import androidx.credentials.exceptions.GetCredentialException;
 
+import java.io.Serializable;
+import android.os.Parcelable;
+
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.lang.reflect.Method;
@@ -256,48 +259,48 @@ public class GoogleSignInHelper {
   }
 
   // Method to process the AuthorizationResult and convert it to SignInResultWrapper
-    public static void processAuthorizationResult(AuthorizationResult authorizationResult, IListener requestHandle) {
-        logDebug("Processing authorization result...");
+  public static void processAuthorizationResult(AuthorizationResult authorizationResult, IListener requestHandle) {
+      logDebug("Processing authorization result...");
 
-        String serverAuthCode = authorizationResult.getServerAuthCode();
-        if (serverAuthCode != null) 
-        {
-            logDebug("Server Auth Code: " + serverAuthCode);
-            SignInResultWrapper wrappedResult = new SignInResultWrapper(authorizationResult.getServerAuthCode());
-            requestHandle.onAuthorized(wrappedResult);
-        } 
-        else 
-        {
-            logDebug("No Server Auth Code returned.");
-        }
+      String serverAuthCode = authorizationResult.getServerAuthCode();
+      if (serverAuthCode != null) 
+      {
+          logDebug("Server Auth Code: " + serverAuthCode);
+          SignInResultWrapper wrappedResult = new SignInResultWrapper(authorizationResult.getServerAuthCode());
+          requestHandle.onAuthorized(wrappedResult);
+      } 
+      else 
+      {
+          logDebug("No Server Auth Code returned.");
+      }
 
-        if (authorizationResult.hasResolution()) 
-        {
-            PendingIntent pendingIntent = authorizationResult.getPendingIntent();
-            if (pendingIntent != null) 
-            {
-                try 
-                {
-                    Intent signInIntent = new Intent(UnityPlayer.currentActivity, GoogleSignInActivity.class);
-                    signInIntent.putExtra("pendingIntent", pendingIntent);
-                    UnityPlayer.currentActivity.startActivity(signInIntent);
-                    logDebug("Started GoogleSignInActivity with PendingIntent.");
-                } 
-                catch (Exception e) 
-                {
-                    logError("Failed to launch GoogleSignInActivity: " + e.getMessage());
-                }
-            } 
-            else 
-            {
-                logDebug("PendingIntent is null, even though hasResolution() is true.");
-            }
-        } 
-        else 
-        {
-            logDebug("No resolution required.");
-        }
-    }
+      if (authorizationResult.hasResolution()) 
+      {
+          PendingIntent pendingIntent = authorizationResult.getPendingIntent();
+          if (pendingIntent != null) 
+          {
+              try 
+              {
+                  Intent signInIntent = new Intent(UnityPlayer.currentActivity, GoogleSignInActivity.class);
+                  signInIntent.putExtra("pendingIntent", pendingIntent);
+                  UnityPlayer.currentActivity.startActivity(signInIntent);
+                  logDebug("Started GoogleSignInActivity with PendingIntent.");
+              } 
+              catch (Exception e) 
+              {
+                  logError("Failed to launch GoogleSignInActivity: " + e.getMessage());
+              }
+          } 
+          else 
+          {
+              logDebug("PendingIntent is null, even though hasResolution() is true.");
+          }
+      } 
+      else 
+      {
+          logDebug("No resolution required.");
+      }
+  }
 
   // Method to handle sign-in results
   public static void handleSignInResult(int resultCode, Intent data) {
@@ -311,13 +314,15 @@ public class GoogleSignInHelper {
               for (String key : extras.keySet()) {
                   Object value = extras.get(key);
   
-                  if (key.equals("authorization_result") && value instanceof byte[]) 
-                  {
+                  if (key.equals("authorization_result") && value instanceof byte[]) {
                       byte[] authResultBytes = (byte[]) value;
                       printByteArray(authResultBytes);
                   } 
-                  else 
-                  {
+                  else if (key.equals("status") && value instanceof byte[]) {
+                      byte[] statusBytes = (byte[]) value;
+                      printByteArray(statusBytes);
+                  } 
+                  else {
                       logDebug("Key: " + key + " has value of type: " + (value != null ? value.getClass().getName() : "null"));
                   }
               }

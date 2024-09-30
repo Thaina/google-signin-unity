@@ -192,18 +192,25 @@ namespace Google.Impl {
 
 	internal static string GoogleSignIn_GetUserId(HandleRef self)
 	{
+		string idTokenFull = null;
 		try
 		{
-			var idTokenPart = googleIdTokenCredential?.Call<string>("getIdToken")?.Split('.')?.ElementAtOrDefault(1);
+			idTokenFull = googleIdTokenCredential?.Call<string>("getIdToken");
+			var idTokenPart = idTokenFull?.Split('.')?.ElementAtOrDefault(1);
 			if(!(idTokenPart?.Length is int length && length > 1))
 				return null;
 
+			// Replace URL-safe characters and fix padding
+			idTokenPart = idTokenPart.Replace('-', '+').Replace('_', '/');
 			string fill = new string('=',(4 - (idTokenPart.Length % 4)) % 4);
-			var jobj = Newtonsoft.Json.Linq.JObject.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(idTokenPart + fill)));
+			var idTokenFromBase64 = Convert.FromBase64String(idTokenPart + fill);
+			var idToken = Encoding.UTF8.GetString(idTokenFromBase64);
+			var jobj = Newtonsoft.Json.Linq.JObject.Parse(idToken);
 			return jobj?["sub"]?.ToString();
 		}
 		catch(Exception e)
 		{
+			// Debug.LogException(new Exception($"GoogleSignIn_GetUserId.idTokenFull {idTokenFull}"));
 			Debug.LogException(e);
 			return null;
 		}

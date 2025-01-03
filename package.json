@@ -9,8 +9,7 @@
         "signin"
     ],
     "dependencies": {
-        "com.unity.nuget.newtonsoft-json": "3.2.1",
-	"com.google.external-dependency-manager": "1.2.183"
+        "com.unity.nuget.newtonsoft-json": "3.2.1"
     },
     "samples": [
         {

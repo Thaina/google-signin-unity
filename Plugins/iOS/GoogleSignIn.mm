@@ -18,6 +18,7 @@
 #import <GoogleSignIn/GIDGoogleUser.h>
 #import <GoogleSignIn/GIDProfileData.h>
 #import <GoogleSignIn/GIDSignIn.h>
+#import <GoogleSignIn/GIDConfiguration.h>
 #import <GoogleSignIn/GIDToken.h>
 #import <UnityAppController.h>
 
@@ -184,14 +185,11 @@ bool GoogleSignIn_Configure(void *unused, bool useGameSignIn,
                             bool requestIdToken, bool hidePopups,
                             const char **additionalScopes, int scopeCount,
                             const char *accountName) {
-    NSString *path = [[NSBundle mainBundle] pathForResource:@"GoogleService-Info" ofType:@"plist"];
-    NSDictionary *dict = [NSDictionary dictionaryWithContentsOfFile:path];
-    NSString *clientId = [dict objectForKey:@"CLIENT_ID"];
-    GIDConfiguration* config = [[GIDConfiguration alloc] initWithClientID:clientId];
     if (webClientId) {
-      config = [[GIDConfiguration alloc] initWithClientID:clientId serverClientID:[NSString stringWithUTF8String:webClientId]];
+      NSLog(@"Configure webClientId at runtime");
+      GIDConfiguration* config = [GIDSignIn sharedInstance].configuration;
+      [GIDSignIn sharedInstance].configuration = [[GIDConfiguration alloc] initWithClientID:config.clientId serverClientID:[NSString stringWithUTF8String:webClientId] hostedDomain:config.hostedDomain openIDRealm:config.openIDRealm];
     }
-    [GoogleSignInHandler sharedInstance]->signInConfiguration = config;
 
     int scopeSize = scopeCount;
     if (scopeSize) {

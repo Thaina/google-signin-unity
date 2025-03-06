@@ -188,7 +188,7 @@ bool GoogleSignIn_Configure(void *unused, bool useGameSignIn,
     if (webClientId) {
       NSLog(@"Configure webClientId at runtime");
       GIDConfiguration* config = [GIDSignIn sharedInstance].configuration;
-      [GIDSignIn sharedInstance].configuration = [[GIDConfiguration alloc] initWithClientID:config.clientId serverClientID:[NSString stringWithUTF8String:webClientId] hostedDomain:config.hostedDomain openIDRealm:config.openIDRealm];
+      [GIDSignIn sharedInstance].configuration = [[GIDConfiguration alloc] initWithClientID:config.clientID serverClientID:[NSString stringWithUTF8String:webClientId] hostedDomain:config.hostedDomain openIDRealm:config.openIDRealm];
     }
 
     int scopeSize = scopeCount;

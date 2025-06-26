@@ -29,15 +29,15 @@
 // codes are mapped to these.
 static const int kStatusCodeSuccessCached = -1;
 static const int kStatusCodeSuccess = 0;
-static const int kStatusCodeApiNotConnected = 1;
-static const int kStatusCodeCanceled = 2;
-static const int kStatusCodeInterrupted = 3;
-static const int kStatusCodeInvalidAccount = 4;
-static const int kStatusCodeTimeout = 5;
-static const int kStatusCodeDeveloperError = 6;
-static const int kStatusCodeInternalError = 7;
-static const int kStatusCodeNetworkError = 8;
-static const int kStatusCodeError = 9;
+static const int kStatusCodeApiNotConnected = 17;
+static const int kStatusCodeCanceled = 16;
+static const int kStatusCodeInterrupted = 14;
+static const int kStatusCodeInvalidAccount = 5;
+static const int kStatusCodeTimeout = 15;
+static const int kStatusCodeDeveloperError = 10;
+static const int kStatusCodeInternalError = 8;
+static const int kStatusCodeNetworkError = 7;
+static const int kStatusCodeError = 13;
 
 /**
  * Helper method to pause the Unity player.  This is done when showing any UI.

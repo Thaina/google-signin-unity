@@ -8,7 +8,7 @@ using System.Collections.Generic;
 
 using System.Net;
 using System.Net.NetworkInformation;
-
+using System.Collections.Specialized;
 using UnityEngine;
 using UnityEditor;
 
@@ -120,6 +120,64 @@ namespace Google.Impl
       }).FirstOrDefault((listener) => listener != null);
     }
 
+    public static NameValueCollection ParseQueryString(string query)
+    {
+      var nvc = new NameValueCollection();
+
+      if (string.IsNullOrEmpty(query))
+      {
+        return nvc;
+      }
+
+      // Remove leading '?' if it's a full URL query string
+      if (query.StartsWith("?"))
+      {
+        query = query.Substring(1);
+      }
+
+      // Split by '&' to get individual key-value pairs
+      string[] pairs = query.Split('&');
+
+      foreach (string pair in pairs)
+      {
+        if (string.IsNullOrEmpty(pair))
+        {
+          continue; // Skip empty pairs (e.g., "a=1&&b=2")
+        }
+
+        // Find the first '='
+        int indexOfEquals = pair.IndexOf('=');
+
+        string key;
+        string value;
+
+        if (indexOfEquals == -1)
+        {
+          // No '=' found, treat the whole segment as a key with an empty value
+          // Example: "param_without_value" -> param_without_value=""
+          key = pair;
+          value = string.Empty;
+        }
+        else
+        {
+          // Split key and value based on the first '='
+          key = pair.Substring(0, indexOfEquals);
+          value = pair.Substring(indexOfEquals + 1);
+        }
+
+        // URL-decode both key and value
+        // WebUtility.UrlDecode handles %xx decoding and converting '+' to space.
+        key = WebUtility.UrlDecode(key);
+        value = WebUtility.UrlDecode(value);
+
+        // Add to the NameValueCollection.
+        // NameValueCollection automatically handles multiple values for the same key.
+        nvc.Add(key, value);
+      }
+
+      return nvc;
+    }
+
     void SigningIn()
     {
       Pending = true;
@@ -143,7 +201,7 @@ namespace Google.Impl
           Debug.Log(task);
           var context = task.Result;
           var queryString = context.Request.Url.Query;
-          var queryDictionary = System.Web.HttpUtility.ParseQueryString(queryString);
+          var queryDictionary = ParseQueryString(queryString);
           if(queryDictionary == null || queryDictionary.Get("code") is not string code || string.IsNullOrEmpty(code))
           {
             Status = GoogleSignInStatusCode.INVALID_ACCOUNT;

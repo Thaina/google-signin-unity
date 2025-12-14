@@ -135,6 +135,7 @@ public class GoogleSignInHelper {
    *                           C++ code, this is used
    *                           to correlate the response with the request.
    */
+  @SuppressWarnings("deprecation")
   public static void configure(
           boolean useGamesConfig,
           String webClientId,
@@ -186,14 +187,15 @@ public class GoogleSignInHelper {
           signInClient.beginSignIn(beginSignInRequest)
               .addOnSuccessListener(result -> {
                 try {
-                  // The BeginSignInResult contains a PendingIntent that needs to be launched
-                  // In a Unity environment, we can't easily handle activity results
-                  // So we try to get the credential directly if available
-                  SignInCredential credential = signInClient.getSignInCredentialFromIntent(result.getPendingIntent().getIntent());
-                  credentialSource.trySetResult(credential);
+                  // Launch the sign-in intent
+                  UnityPlayer.currentActivity.startIntentSenderForResult(
+                      result.getPendingIntent().getIntentSender(),
+                      RC_SIGN_IN,
+                      null, 0, 0, 0);
+                  // Note: In a production app, you'd handle the result in onActivityResult
+                  // For now, we'll rely on the sign-in flow completing
+                  credentialSource.trySetException(new Exception("Sign-in UI launched - result handling not implemented"));
                 } catch (Exception e) {
-                  // If we can't get credential directly, we need to launch the intent
-                  // This is a simplified approach - in production you'd handle the activity result
                   credentialSource.trySetException(e);
                 }
               })
@@ -367,6 +369,7 @@ public class GoogleSignInHelper {
     task = null;
   }
 
+  @SuppressWarnings("deprecation")
   public static void signOut() {
     cancel();
 

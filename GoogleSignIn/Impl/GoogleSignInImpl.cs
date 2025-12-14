@@ -125,6 +125,7 @@ namespace Google.Impl {
 	}
 
 	static AndroidJavaObject googleIdTokenCredential;
+	static AndroidJavaObject signInCredential;
 	static AndroidJavaObject authorizationResult;
 
 	public class SignInListener : AndroidJavaProxy
@@ -135,6 +136,18 @@ namespace Google.Impl {
 		{
 			googleIdTokenCredential?.Dispose();
 			googleIdTokenCredential = _googleIdTokenCredential;
+			
+			signInCredential?.Dispose();
+			signInCredential = null;
+		}
+
+		public void onAuthenticatedLegacy(AndroidJavaObject _signInCredential)
+		{
+			signInCredential?.Dispose();
+			signInCredential = _signInCredential;
+			
+			googleIdTokenCredential?.Dispose();
+			googleIdTokenCredential = null;
 		}
 
     	public void onAuthorized(AndroidJavaObject _authorizationResult)
@@ -151,6 +164,7 @@ namespace Google.Impl {
 
 		public void onCanceled() {
 			googleIdTokenCredential?.Dispose();
+			signInCredential?.Dispose();
 			authorizationResult?.Dispose();
 		}
 	}
@@ -172,6 +186,9 @@ namespace Google.Impl {
 		googleIdTokenCredential?.Dispose();
 		googleIdTokenCredential = null;
 
+		signInCredential?.Dispose();
+		signInCredential = null;
+
 		authorizationResult?.Dispose();
 		authorizationResult = null;
 
@@ -184,7 +201,7 @@ namespace Google.Impl {
 
 	internal static bool GoogleSignIn_Pending(HandleRef self) => GoogleSignInHelper.CallStatic<bool>("isPending");
 
-	internal static IntPtr GoogleSignIn_Result(HandleRef self) => googleIdTokenCredential.GetRawObject();
+	internal static IntPtr GoogleSignIn_Result(HandleRef self) => googleIdTokenCredential?.GetRawObject() ?? signInCredential?.GetRawObject() ?? IntPtr.Zero;
 
 	internal static int GoogleSignIn_Status(HandleRef self) => GoogleSignInHelper.CallStatic<int>("getStatus");
 
@@ -194,6 +211,12 @@ namespace Google.Impl {
 	{
 		try
 		{
+			// For legacy SignInCredential (Android < 14)
+			if (signInCredential != null) {
+				return signInCredential.Call<string>("getId");
+			}
+			
+			// For GoogleIdTokenCredential (Android >= 14), extract from ID token
 			string idTokenFull = googleIdTokenCredential?.Call<string>("getIdToken");
 			string idTokenPart = idTokenFull?.Split('.')?.ElementAtOrDefault(1);
 			if(!(idTokenPart?.Length > 1))
@@ -216,17 +239,17 @@ namespace Google.Impl {
 		}
 	}
 
-	internal static string GoogleSignIn_GetEmail(HandleRef self) => googleIdTokenCredential?.Call<string>("getId");
+	internal static string GoogleSignIn_GetEmail(HandleRef self) => signInCredential?.Call<string>("getId") ?? googleIdTokenCredential?.Call<string>("getId");
 
-	internal static string GoogleSignIn_GetDisplayName(HandleRef self) => googleIdTokenCredential?.Call<string>("getDisplayName");
+	internal static string GoogleSignIn_GetDisplayName(HandleRef self) => signInCredential?.Call<string>("getDisplayName") ?? googleIdTokenCredential?.Call<string>("getDisplayName");
 
-	internal static string GoogleSignIn_GetFamilyName(HandleRef self) => googleIdTokenCredential?.Call<string>("getFamilyName");
+	internal static string GoogleSignIn_GetFamilyName(HandleRef self) => signInCredential?.Call<string>("getFamilyName") ?? googleIdTokenCredential?.Call<string>("getFamilyName");
 
-	internal static string GoogleSignIn_GetGivenName(HandleRef self) => googleIdTokenCredential?.Call<string>("getGivenName");
+	internal static string GoogleSignIn_GetGivenName(HandleRef self) => signInCredential?.Call<string>("getGivenName") ?? googleIdTokenCredential?.Call<string>("getGivenName");
 
-	internal static string GoogleSignIn_GetIdToken(HandleRef self) => googleIdTokenCredential?.Call<string>("getIdToken");
+	internal static string GoogleSignIn_GetIdToken(HandleRef self) => signInCredential?.Call<string>("getIdToken") ?? googleIdTokenCredential?.Call<string>("getIdToken");
 
-	internal static string GoogleSignIn_GetImageUrl(HandleRef self) => googleIdTokenCredential?.Call<AndroidJavaObject>("getProfilePictureUri")?.Call<string>("toString");
+	internal static string GoogleSignIn_GetImageUrl(HandleRef self) => signInCredential?.Call<AndroidJavaObject>("getProfilePictureUri")?.Call<string>("toString") ?? googleIdTokenCredential?.Call<AndroidJavaObject>("getProfilePictureUri")?.Call<string>("toString");
 #else
 	private const string DllName = "__Internal";
 

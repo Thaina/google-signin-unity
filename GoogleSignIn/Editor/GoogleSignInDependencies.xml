@@ -3,8 +3,8 @@
   <!-- See https://github.com/googlesamples/unity-jar-resolver#usage for
     how to configure dependencies -->
   <androidPackages>
-    <androidPackage spec="androidx.credentials:credentials:1.3.0" />
-    <androidPackage spec="androidx.credentials:credentials-play-services-auth:1.3.0" />
+    <androidPackage spec="androidx.credentials:credentials:1.5.0" />
+    <androidPackage spec="androidx.credentials:credentials-play-services-auth:1.5.0" />
     <androidPackage spec="com.google.android.libraries.identity.googleid:googleid:1.1.1" />
     <androidPackage spec="com.google.android.gms:play-services-auth:21.3.0" />
   </androidPackages>

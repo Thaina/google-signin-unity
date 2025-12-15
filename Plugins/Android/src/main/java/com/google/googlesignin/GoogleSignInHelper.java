@@ -187,13 +187,23 @@ public class GoogleSignInHelper {
           signInClient.beginSignIn(beginSignInRequest)
               .addOnSuccessListener(result -> {
                 try {
-                  // Launch the sign-in intent
-                  UnityPlayer.currentActivity.startIntentSenderForResult(
-                      result.getPendingIntent().getIntentSender(),
-                      RC_SIGN_IN,
-                      null, 0, 0, 0);
-                  // The sign-in UI has been launched successfully
-                  // The actual credential will be received through onActivityResult
+                  // Set up callback to receive the result
+                  SignInActivity.setResultCallback(new SignInActivity.SignInResultCallback() {
+                    @Override
+                    public void onSignInResult(SignInCredential credential) {
+                      credentialSource.trySetResult(credential);
+                    }
+                    
+                    @Override
+                    public void onSignInError(Exception exception) {
+                      credentialSource.trySetException(exception);
+                    }
+                  });
+                  
+                  // Launch the sign-in activity
+                  Intent intent = new Intent(UnityPlayer.currentActivity, SignInActivity.class);
+                  intent.putExtra("pending_intent", result.getPendingIntent().getIntentSender());
+                  UnityPlayer.currentActivity.startActivity(intent);
                 } catch (Exception e) {
                   credentialSource.trySetException(e);
                 }

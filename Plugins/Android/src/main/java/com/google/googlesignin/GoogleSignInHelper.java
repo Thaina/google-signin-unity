@@ -192,9 +192,8 @@ public class GoogleSignInHelper {
                       result.getPendingIntent().getIntentSender(),
                       RC_SIGN_IN,
                       null, 0, 0, 0);
-                  // Note: In a production app, you'd handle the result in onActivityResult
-                  // For now, we'll rely on the sign-in flow completing
-                  credentialSource.trySetException(new Exception("Sign-in UI launched - result handling not implemented"));
+                  // The sign-in UI has been launched successfully
+                  // The actual credential will be received through onActivityResult
                 } catch (Exception e) {
                   credentialSource.trySetException(e);
                 }

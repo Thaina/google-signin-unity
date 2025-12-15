@@ -149,9 +149,9 @@ public class GoogleSignInHelper {
           IListener requestHandle) {
     logDebug("TokenFragment.configure called");
 
-    // For Android < 14 (API 34), use the old GetSignInIntent approach to match Firebase assumptions
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-      logInfo("Using legacy SignInClient for Android < 14");
+    // For Android < 13 (API 33), use the old GetSignInIntent approach to match Firebase assumptions
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+      logInfo("Using legacy SignInClient for Android < 13");
       signInClient = Identity.getSignInClient(UnityPlayer.currentActivity);
       
       signInFunction = new Function<Boolean, Task<AuthorizationResult>>() {
@@ -245,8 +245,8 @@ public class GoogleSignInHelper {
         }
       };
     } else {
-      // For Android >= 14, use CredentialManager
-      logInfo("Using CredentialManager for Android >= 14");
+      // For Android >= 13, use CredentialManager
+      logInfo("Using CredentialManager for Android >= 13");
       
       signInFunction = new Function<Boolean, Task<AuthorizationResult>>() {
         @Override
@@ -372,8 +372,8 @@ public class GoogleSignInHelper {
   public static void signOut() {
     cancel();
 
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-      // Use legacy signOut for Android < 14
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+      // Use legacy signOut for Android < 13
       if (signInClient != null) {
         signInClient.signOut()
             .addOnSuccessListener(new OnSuccessListener<Void>() {
@@ -390,7 +390,7 @@ public class GoogleSignInHelper {
             });
       }
     } else {
-      // Use CredentialManager for Android >= 14
+      // Use CredentialManager for Android >= 13
       CredentialManager.create(UnityPlayer.currentActivity).clearCredentialStateAsync(new ClearCredentialStateRequest(),
               new CancellationSignal(),
               TaskExecutors.MAIN_THREAD,

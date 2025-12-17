@@ -36,6 +36,7 @@ public class SignInActivity extends Activity {
     public interface SignInResultCallback {
         void onSignInResult(SignInCredential credential);
         void onSignInError(Exception exception);
+        void onSignInCancelled();
     }
     
     public static void setResultCallback(SignInResultCallback callback) {
@@ -76,9 +77,17 @@ public class SignInActivity extends Activity {
                     resultCallback.onSignInResult(credential);
                 }
             } catch (ApiException e) {
-                Log.e(TAG, "Sign-in failed", e);
-                if (resultCallback != null) {
-                    resultCallback.onSignInError(e);
+                // Check if user cancelled the sign-in (error code 16)
+                if (e.getStatusCode() == 16) {
+                    Log.i(TAG, "Sign-in cancelled by user");
+                    if (resultCallback != null) {
+                        resultCallback.onSignInCancelled();
+                    }
+                } else {
+                    Log.e(TAG, "Sign-in failed", e);
+                    if (resultCallback != null) {
+                        resultCallback.onSignInError(e);
+                    }
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Unexpected error", e);

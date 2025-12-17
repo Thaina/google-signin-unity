@@ -198,6 +198,11 @@ public class GoogleSignInHelper {
                     public void onSignInError(Exception exception) {
                       credentialSource.trySetException(exception);
                     }
+                    
+                    @Override
+                    public void onSignInCancelled() {
+                      credentialSource.trySetCanceled();
+                    }
                   });
                   
                   // Launch the sign-in activity

@@ -201,7 +201,8 @@ public class GoogleSignInHelper {
                     
                     @Override
                     public void onSignInCancelled() {
-                      credentialSource.trySetCanceled();
+                      // Set an ApiException with CANCELED status so it gets properly handled
+                      credentialSource.trySetException(new ApiException(new com.google.android.gms.common.api.Status(CommonStatusCodes.CANCELED)));
                     }
                   });
                   

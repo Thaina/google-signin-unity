@@ -158,6 +158,19 @@ namespace Google.Impl {
 
 		public void onFailure(AndroidJavaObject exception)
 		{
+			// Check if this is a cancellation (status code 16)
+			try {
+				var statusCode = exception?.Call<int>("getStatusCode");
+				if (statusCode == 16) { // CommonStatusCodes.CANCELED
+					Debug.Log("Sign-in cancelled by user");
+					onCanceled();
+					exception.Dispose();
+					return;
+				}
+			} catch {
+				// Not an ApiException, continue with normal error handling
+			}
+			
 			Debug.LogErrorFormat("onFailure {0} : {1}",exception?.Call<AndroidJavaObject>("getClass").Call<string>("toString"),exception?.Call<string>("getMessage"));
 			exception.Dispose();
 		}

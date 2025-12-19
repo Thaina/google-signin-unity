@@ -29,6 +29,7 @@ import androidx.credentials.CredentialManagerCallback;
 import androidx.credentials.GetCredentialRequest;
 import androidx.credentials.GetCredentialResponse;
 import androidx.credentials.exceptions.ClearCredentialException;
+import androidx.credentials.exceptions.GetCredentialCancellationException;
 import androidx.credentials.exceptions.GetCredentialException;
 
 import com.google.android.gms.auth.api.identity.AuthorizationRequest;
@@ -310,6 +311,8 @@ public class GoogleSignInHelper {
 
                     @Override
                     public void onError(@NotNull GetCredentialException e) {
+                      // For Android >= 13, we receive GetCredentialException
+                      // Just pass it through - the C# side will handle it
                       source.trySetException(e);
                     }
                   });

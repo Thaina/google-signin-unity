@@ -125,6 +125,7 @@ namespace Google.Impl {
 	}
 
 	static AndroidJavaObject googleIdTokenCredential;
+	static AndroidJavaObject signInCredential;
 	static AndroidJavaObject authorizationResult;
 
 	public class SignInListener : AndroidJavaProxy
@@ -135,6 +136,18 @@ namespace Google.Impl {
 		{
 			googleIdTokenCredential?.Dispose();
 			googleIdTokenCredential = _googleIdTokenCredential;
+			
+			signInCredential?.Dispose();
+			signInCredential = null;
+		}
+
+		public void onAuthenticatedLegacy(AndroidJavaObject _signInCredential)
+		{
+			signInCredential?.Dispose();
+			signInCredential = _signInCredential;
+			
+			googleIdTokenCredential?.Dispose();
+			googleIdTokenCredential = null;
 		}
 
     	public void onAuthorized(AndroidJavaObject _authorizationResult)
@@ -145,12 +158,38 @@ namespace Google.Impl {
 
 		public void onFailure(AndroidJavaObject exception)
 		{
-			Debug.LogErrorFormat("onFailure {0} : {1}",exception?.Call<AndroidJavaObject>("getClass").Call<string>("toString"),exception?.Call<string>("getMessage"));
+			// Check exception type to detect cancellation
+			try {
+				var exceptionClass = exception?.Call<AndroidJavaObject>("getClass")?.Call<string>("getName");
+				
+				// Android < 14: ApiException with status code 16 (CANCELED)
+				if (exceptionClass == "com.google.android.gms.common.api.ApiException") {
+					var statusCode = exception?.Call<int>("getStatusCode");
+					if (statusCode == 16) { // CommonStatusCodes.CANCELED
+						Debug.Log("Sign-in cancelled by user (Android < 14)");
+						onCanceled();
+						exception.Dispose();
+						return;
+					}
+				}
+				// Android >= 14: GetCredentialCancellationException
+				else if (exceptionClass == "androidx.credentials.exceptions.GetCredentialCancellationException") {
+					Debug.Log("Sign-in cancelled by user (Android >= 14)");
+					onCanceled();
+					exception.Dispose();
+					return;
+				}
+			} catch (System.Exception e) {
+				Debug.LogWarning($"Failed to check exception type: {e.Message}");
+			}
+			
+			Debug.LogErrorFormat("onFailure {0} : {1}",exception?.Call<AndroidJavaObject>("getClass")?.Call<string>("toString"),exception?.Call<string>("getMessage"));
 			exception.Dispose();
 		}
 
 		public void onCanceled() {
 			googleIdTokenCredential?.Dispose();
+			signInCredential?.Dispose();
 			authorizationResult?.Dispose();
 		}
 	}
@@ -172,6 +211,9 @@ namespace Google.Impl {
 		googleIdTokenCredential?.Dispose();
 		googleIdTokenCredential = null;
 
+		signInCredential?.Dispose();
+		signInCredential = null;
+
 		authorizationResult?.Dispose();
 		authorizationResult = null;
 
@@ -184,7 +226,7 @@ namespace Google.Impl {
 
 	internal static bool GoogleSignIn_Pending(HandleRef self) => GoogleSignInHelper.CallStatic<bool>("isPending");
 
-	internal static IntPtr GoogleSignIn_Result(HandleRef self) => googleIdTokenCredential.GetRawObject();
+	internal static IntPtr GoogleSignIn_Result(HandleRef self) => googleIdTokenCredential?.GetRawObject() ?? signInCredential?.GetRawObject() ?? IntPtr.Zero;
 
 	internal static int GoogleSignIn_Status(HandleRef self) => GoogleSignInHelper.CallStatic<int>("getStatus");
 
@@ -194,8 +236,24 @@ namespace Google.Impl {
 	{
 		try
 		{
-			string idTokenFull = googleIdTokenCredential?.Call<string>("getIdToken");
-			string idTokenPart = idTokenFull?.Split('.')?.ElementAtOrDefault(1);
+			// Extract sub claim from ID token for both credential types
+			// This ensures consistent user identification across Android versions
+			string idTokenFull = null;
+			
+			// For legacy SignInCredential (Android < 14)
+			if (signInCredential != null) {
+				idTokenFull = signInCredential.Call<string>("getGoogleIdToken");
+			}
+			// For GoogleIdTokenCredential (Android >= 14)
+			else if (googleIdTokenCredential != null) {
+				idTokenFull = googleIdTokenCredential.Call<string>("getIdToken");
+			}
+			
+			if (string.IsNullOrEmpty(idTokenFull))
+				return null;
+			
+			// Parse JWT to extract sub claim
+			string idTokenPart = idTokenFull.Split('.').ElementAtOrDefault(1);
 			if(!(idTokenPart?.Length > 1))
 				return null;
 
@@ -216,17 +274,17 @@ namespace Google.Impl {
 		}
 	}
 
-	internal static string GoogleSignIn_GetEmail(HandleRef self) => googleIdTokenCredential?.Call<string>("getId");
+	internal static string GoogleSignIn_GetEmail(HandleRef self) => googleIdTokenCredential?.Call<string>("getId") ?? signInCredential?.Call<string>("getId");
 
-	internal static string GoogleSignIn_GetDisplayName(HandleRef self) => googleIdTokenCredential?.Call<string>("getDisplayName");
+	internal static string GoogleSignIn_GetDisplayName(HandleRef self) => googleIdTokenCredential?.Call<string>("getDisplayName") ?? signInCredential?.Call<string>("getDisplayName");
 
-	internal static string GoogleSignIn_GetFamilyName(HandleRef self) => googleIdTokenCredential?.Call<string>("getFamilyName");
+	internal static string GoogleSignIn_GetFamilyName(HandleRef self) => googleIdTokenCredential?.Call<string>("getFamilyName") ?? signInCredential?.Call<string>("getFamilyName");
 
-	internal static string GoogleSignIn_GetGivenName(HandleRef self) => googleIdTokenCredential?.Call<string>("getGivenName");
+	internal static string GoogleSignIn_GetGivenName(HandleRef self) => googleIdTokenCredential?.Call<string>("getGivenName") ?? signInCredential?.Call<string>("getGivenName");
 
-	internal static string GoogleSignIn_GetIdToken(HandleRef self) => googleIdTokenCredential?.Call<string>("getIdToken");
+	internal static string GoogleSignIn_GetIdToken(HandleRef self) => googleIdTokenCredential?.Call<string>("getIdToken") ?? signInCredential?.Call<string>("getGoogleIdToken");
 
-	internal static string GoogleSignIn_GetImageUrl(HandleRef self) => googleIdTokenCredential?.Call<AndroidJavaObject>("getProfilePictureUri")?.Call<string>("toString");
+	internal static string GoogleSignIn_GetImageUrl(HandleRef self) => googleIdTokenCredential?.Call<AndroidJavaObject>("getProfilePictureUri")?.Call<string>("toString") ?? signInCredential?.Call<AndroidJavaObject>("getProfilePictureUri")?.Call<string>("toString");
 #else
 	private const string DllName = "__Internal";
 

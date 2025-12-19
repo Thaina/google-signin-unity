@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.google.googlesignin">
+
+    <application>
+        <!-- Transparent activity to handle sign-in results -->
+        <activity
+            android:name=".SignInActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:exported="false" />
+    </application>
+</manifest>

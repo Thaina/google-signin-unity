@@ -236,14 +236,24 @@ namespace Google.Impl {
 	{
 		try
 		{
+			// Extract sub claim from ID token for both credential types
+			// This ensures consistent user identification across Android versions
+			string idTokenFull = null;
+			
 			// For legacy SignInCredential (Android < 14)
 			if (signInCredential != null) {
-				return signInCredential.Call<string>("getId");
+				idTokenFull = signInCredential.Call<string>("getGoogleIdToken");
+			}
+			// For GoogleIdTokenCredential (Android >= 14)
+			else if (googleIdTokenCredential != null) {
+				idTokenFull = googleIdTokenCredential.Call<string>("getIdToken");
 			}
 			
-			// For GoogleIdTokenCredential (Android >= 14), extract from ID token
-			string idTokenFull = googleIdTokenCredential?.Call<string>("getIdToken");
-			string idTokenPart = idTokenFull?.Split('.')?.ElementAtOrDefault(1);
+			if (string.IsNullOrEmpty(idTokenFull))
+				return null;
+			
+			// Parse JWT to extract sub claim
+			string idTokenPart = idTokenFull.Split('.').ElementAtOrDefault(1);
 			if(!(idTokenPart?.Length > 1))
 				return null;
 

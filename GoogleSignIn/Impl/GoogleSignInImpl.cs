@@ -160,21 +160,21 @@ namespace Google.Impl {
 		{
 			// Check exception type to detect cancellation
 			try {
-				var exceptionClass = exception?.Call<AndroidJavaObject>("getClass").Call<string>("getName");
+				var exceptionClass = exception?.Call<AndroidJavaObject>("getClass")?.Call<string>("getName");
 				
-				// Android < 13: ApiException with status code 16 (CANCELED)
+				// Android < 14: ApiException with status code 16 (CANCELED)
 				if (exceptionClass == "com.google.android.gms.common.api.ApiException") {
 					var statusCode = exception?.Call<int>("getStatusCode");
 					if (statusCode == 16) { // CommonStatusCodes.CANCELED
-						Debug.Log("Sign-in cancelled by user (Android < 13)");
+						Debug.Log("Sign-in cancelled by user (Android < 14)");
 						onCanceled();
 						exception.Dispose();
 						return;
 					}
 				}
-				// Android >= 13: GetCredentialCancellationException
+				// Android >= 14: GetCredentialCancellationException
 				else if (exceptionClass == "androidx.credentials.exceptions.GetCredentialCancellationException") {
-					Debug.Log("Sign-in cancelled by user (Android >= 13)");
+					Debug.Log("Sign-in cancelled by user (Android >= 14)");
 					onCanceled();
 					exception.Dispose();
 					return;
@@ -183,7 +183,7 @@ namespace Google.Impl {
 				Debug.LogWarning($"Failed to check exception type: {e.Message}");
 			}
 			
-			Debug.LogErrorFormat("onFailure {0} : {1}",exception?.Call<AndroidJavaObject>("getClass").Call<string>("toString"),exception?.Call<string>("getMessage"));
+			Debug.LogErrorFormat("onFailure {0} : {1}",exception?.Call<AndroidJavaObject>("getClass")?.Call<string>("toString"),exception?.Call<string>("getMessage"));
 			exception.Dispose();
 		}
 

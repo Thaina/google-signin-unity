@@ -16,7 +16,10 @@
 package com.google.googlesignin;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.CancellationSignal;
 import android.util.Log;
@@ -29,7 +32,6 @@ import androidx.credentials.CredentialManagerCallback;
 import androidx.credentials.GetCredentialRequest;
 import androidx.credentials.GetCredentialResponse;
 import androidx.credentials.exceptions.ClearCredentialException;
-import androidx.credentials.exceptions.GetCredentialCancellationException;
 import androidx.credentials.exceptions.GetCredentialException;
 
 import com.google.android.gms.auth.api.identity.AuthorizationRequest;
@@ -38,13 +40,12 @@ import com.google.android.gms.auth.api.identity.BeginSignInRequest;
 import com.google.android.gms.auth.api.identity.Identity;
 import com.google.android.gms.auth.api.identity.SignInClient;
 import com.google.android.gms.auth.api.identity.SignInCredential;
+import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.Scopes;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.common.api.CommonStatusCodes;
 import com.google.android.gms.common.api.Scope;
 import com.google.android.gms.common.util.Strings;
-import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.SuccessContinuation;
 import com.google.android.gms.tasks.Task;
@@ -78,12 +79,10 @@ public class GoogleSignInHelper {
     loggingEnabled = flag;
   }
 
-  private static CancellationSignal cancellationSignal;
   private static Task<AuthorizationResult> task;
   private static Function<Boolean, Task<AuthorizationResult>> signInFunction;
   private static SignInClient signInClient;
-  private static final int RC_SIGN_IN = 9001;
-  
+
   public static boolean isPending() {
     return task != null && !task.isComplete() && !task.isCanceled();
   }
@@ -112,29 +111,44 @@ public class GoogleSignInHelper {
   }
 
   /**
+   * Detects if the current GMS version is faulty (introduced in 26.02.35, fix window is post-Feb 11).
+   * Faulty versions should fall back to legacy SignInClient to avoid CredentialManager UI exceptions.
+   * Flagging versions up to 26.08.00 (August release window) for extra safety.
+   */
+  public static boolean isUseSignInClient()
+  {
+      if(Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+          return true;
+
+      Context context = UnityPlayer.currentActivity;
+      if (context == null) return false;
+
+      try {
+          PackageInfo pi = context.getPackageManager().getPackageInfo(GoogleApiAvailability.GOOGLE_PLAY_SERVICES_PACKAGE, 0);
+          long longVersionCode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ? pi.getLongVersionCode() : pi.versionCode;
+
+          // The traditional version code (MMYYDDHHH) is in the lower 32 bits.
+          int gmsVersionCode = (int) longVersionCode;
+
+          Log.d(TAG, "GMS Full Version Code: " + longVersionCode);
+          Log.d(TAG, "GMS Version Code (lower 32 bits): " + gmsVersionCode);
+          Log.d(TAG, "GMS Version Name: " + pi.versionName);
+
+          // Faulty range: Starts at 26.02.35 (260235000).
+          // Extended for safety up to 26.08.00 (260800000) to ensure fix is stable.
+          if (gmsVersionCode >= 260235000 && gmsVersionCode < 260800000) {
+              logInfo("Detected faulty GMS version (" + gmsVersionCode + "). Falling back to legacy SignInClient.");
+              return true;
+          }
+      } catch (Exception e) {
+          Log.e(TAG, "Error checking GMS version code", e);
+      }
+
+      return false;
+  }
+
+  /**
    * Sets the configuration of the sign-in api that should be used.
-   *
-   * @param useGamesConfig     - true if the GAMES_CONFIG should be used when
-   *                           signing-in.
-   * @param webClientId        - the web client id of the backend server
-   *                           associated with this application.
-   * @param requestAuthCode    - true if a server auth code is needed. This also
-   *                           requires the web
-   *                           client id to be set.
-   * @param forceRefreshToken  - true to force a refresh token when using the
-   *                           server auth code.
-   * @param requestEmail       - true if email address of the user is requested.
-   * @param requestIdToken     - true if an id token for the user is requested.
-   * @param hideUiPopups       - true if the popups during sign-in from the Games
-   *                           API should be hidden.
-   *                           This only has affect if useGamesConfig is true.
-   * @param defaultAccountName - the account name to attempt to default to when
-   *                           signing in.
-   * @param additionalScopes   - additional API scopes to request when
-   *                           authenticating.
-   * @param requestHandle      - the handle to this request, created by the native
-   *                           C++ code, this is used
-   *                           to correlate the response with the request.
    */
   @SuppressWarnings("deprecation")
   public static void configure(
@@ -150,11 +164,10 @@ public class GoogleSignInHelper {
           IListener requestHandle) {
     logDebug("TokenFragment.configure called");
 
-    // For Android < 14 (API 34), use the old GetSignInIntent approach to match Firebase assumptions
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-      logInfo("Using legacy SignInClient for Android < 14");
+    if (isUseSignInClient()) {
+      logInfo("Using legacy SignInClient");
       signInClient = Identity.getSignInClient(UnityPlayer.currentActivity);
-      
+
       signInFunction = new Function<Boolean, Task<AuthorizationResult>>() {
         @Override
         public Task<AuthorizationResult> apply(@NonNull Boolean silent) {
@@ -165,49 +178,40 @@ public class GoogleSignInHelper {
           }
 
           BeginSignInRequest.Builder requestBuilder = BeginSignInRequest.builder();
-          
-          BeginSignInRequest.GoogleIdTokenRequestOptions.Builder googleIdTokenOptionsBuilder = 
+          BeginSignInRequest.GoogleIdTokenRequestOptions.Builder googleIdTokenOptionsBuilder =
               BeginSignInRequest.GoogleIdTokenRequestOptions.builder()
                   .setSupported(true)
                   .setFilterByAuthorizedAccounts(silent);
-          
+
           if (!Strings.isEmptyOrWhitespace(webClientId)) {
             googleIdTokenOptionsBuilder.setServerClientId(webClientId);
           }
-          
           if (requestIdToken) {
             requestBuilder.setGoogleIdTokenRequestOptions(googleIdTokenOptionsBuilder.build());
           }
-          
           requestBuilder.setAutoSelectEnabled(hideUiPopups);
-          
+
           BeginSignInRequest beginSignInRequest = requestBuilder.build();
-          
           TaskCompletionSource<SignInCredential> credentialSource = new TaskCompletionSource<>();
-          
+
           signInClient.beginSignIn(beginSignInRequest)
               .addOnSuccessListener(result -> {
                 try {
-                  // Set up callback to receive the result
                   SignInActivity.setResultCallback(new SignInActivity.SignInResultCallback() {
                     @Override
                     public void onSignInResult(SignInCredential credential) {
                       credentialSource.trySetResult(credential);
                     }
-                    
                     @Override
                     public void onSignInError(Exception exception) {
                       credentialSource.trySetException(exception);
                     }
-                    
                     @Override
                     public void onSignInCancelled() {
-                      // Set an ApiException with CANCELED status so it gets properly handled
                       credentialSource.trySetException(new ApiException(new com.google.android.gms.common.api.Status(CommonStatusCodes.CANCELED)));
                     }
                   });
-                  
-                  // Launch the sign-in activity
+
                   Intent intent = new Intent(UnityPlayer.currentActivity, SignInActivity.class);
                   intent.putExtra("pending_intent", result.getPendingIntent().getIntentSender());
                   UnityPlayer.currentActivity.startActivity(intent);
@@ -215,56 +219,33 @@ public class GoogleSignInHelper {
                   credentialSource.trySetException(e);
                 }
               })
-              .addOnFailureListener(e -> {
-                credentialSource.trySetException(e);
-              });
-          
-          return credentialSource.getTask().onSuccessTask(new SuccessContinuation<SignInCredential, AuthorizationResult>() {
-            @NonNull
-            @Override
-            public Task<AuthorizationResult> then(SignInCredential credential) throws Exception {
-              try {
-                // Convert SignInCredential to GoogleIdTokenCredential for compatibility
-                requestHandle.onAuthenticatedLegacy(credential);
-              } catch (Exception e) {
-                throw e;
-              }
-              
-              AuthorizationRequest.Builder authorizationRequestBuilder = new AuthorizationRequest.Builder();
-              if (requestAuthCode && !Strings.isEmptyOrWhitespace(webClientId))
-                authorizationRequestBuilder.requestOfflineAccess(webClientId, forceRefreshToken);
+              .addOnFailureListener(credentialSource::trySetException);
 
-              int additionalCount = additionalScopes != null ? additionalScopes.length : 0;
-              List<Scope> scopes = new ArrayList<>(2 + additionalCount);
-              scopes.add(new Scope(Scopes.PROFILE));
-              if (requestEmail)
-                scopes.add(new Scope(Scopes.EMAIL));
-              if (additionalCount > 0) {
-                for (String scope : additionalScopes) {
-                  scopes.add(new Scope(scope));
-                }
-              }
+          return credentialSource.getTask().onSuccessTask(credential -> {
+            requestHandle.onAuthenticatedLegacy(credential);
 
-              if (!scopes.isEmpty())
-                authorizationRequestBuilder.setRequestedScopes(scopes);
+            AuthorizationRequest.Builder authRequestBuilder = new AuthorizationRequest.Builder();
+            if (requestAuthCode && !Strings.isEmptyOrWhitespace(webClientId))
+              authRequestBuilder.requestOfflineAccess(webClientId, forceRefreshToken);
 
-              return Identity.getAuthorizationClient(UnityPlayer.currentActivity).authorize(authorizationRequestBuilder.build());
+            int additionalCount = additionalScopes != null ? additionalScopes.length : 0;
+            List<Scope> scopes = new ArrayList<>(2 + additionalCount);
+            scopes.add(new Scope(Scopes.PROFILE));
+            if (requestEmail) scopes.add(new Scope(Scopes.EMAIL));
+            if (additionalCount > 0) {
+              for (String scope : additionalScopes) scopes.add(new Scope(scope));
             }
+            if (!scopes.isEmpty()) authRequestBuilder.setRequestedScopes(scopes);
+
+            return Identity.getAuthorizationClient(UnityPlayer.currentActivity).authorize(authRequestBuilder.build());
           })
           .addOnFailureListener(requestHandle)
           .addOnCanceledListener(requestHandle)
-          .addOnSuccessListener(new OnSuccessListener<AuthorizationResult>() {
-            @Override
-            public void onSuccess(AuthorizationResult authorizationResult) {
-              requestHandle.onAuthorized(authorizationResult);
-            }
-          });
+          .addOnSuccessListener(requestHandle::onAuthorized);
         }
       };
     } else {
-      // For Android >= 14, use CredentialManager
-      logInfo("Using CredentialManager for Android >= 14");
-      
+      logInfo("Using CredentialManager");
       signInFunction = new Function<Boolean, Task<AuthorizationResult>>() {
         @Override
         public Task<AuthorizationResult> apply(@NonNull Boolean silent) {
@@ -274,95 +255,56 @@ public class GoogleSignInHelper {
             return source.getTask();
           }
 
-          cancellationSignal = new CancellationSignal();
-
-          GetCredentialRequest.Builder getCredentialRequestBuilder = new GetCredentialRequest.Builder()
+          GetCredentialRequest.Builder builder = new GetCredentialRequest.Builder()
                   .setPreferImmediatelyAvailableCredentials(hideUiPopups);
 
           if(silent) {
-            GetGoogleIdOption.Builder getGoogleIdOptionBuilder = new GetGoogleIdOption.Builder()
+            GetGoogleIdOption.Builder optionBuilder = new GetGoogleIdOption.Builder()
                     .setFilterByAuthorizedAccounts(hideUiPopups)
                     .setAutoSelectEnabled(hideUiPopups);
-
-            if(defaultAccountName != null)
-              getGoogleIdOptionBuilder.setNonce(defaultAccountName);
-
-            if(!Strings.isEmptyOrWhitespace(webClientId))
-              getGoogleIdOptionBuilder.setServerClientId(webClientId);
-
-            getCredentialRequestBuilder.addCredentialOption(getGoogleIdOptionBuilder.build());
-          }
-          else {
-            GetSignInWithGoogleOption.Builder getSignInWithGoogleOptionBuilder = new GetSignInWithGoogleOption.Builder(webClientId);
-            getCredentialRequestBuilder.addCredentialOption(getSignInWithGoogleOptionBuilder.build());
+            if(defaultAccountName != null) optionBuilder.setNonce(defaultAccountName);
+            if(!Strings.isEmptyOrWhitespace(webClientId)) optionBuilder.setServerClientId(webClientId);
+            builder.addCredentialOption(optionBuilder.build());
+          } else {
+            builder.addCredentialOption(new GetSignInWithGoogleOption.Builder(webClientId).build());
           }
 
           TaskCompletionSource<GetCredentialResponse> source = new TaskCompletionSource<>();
-
-          CredentialManager.create(UnityPlayer.currentActivity).getCredentialAsync(UnityPlayer.currentActivity,
-                  getCredentialRequestBuilder.build(),
-                  cancellationSignal,
-                  TaskExecutors.MAIN_THREAD,
+          SignInActivity.setCredentialManagerRequest(builder.build(),
                   new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
                     @Override
-                    public void onResult(GetCredentialResponse getCredentialResponse) {
-                      source.trySetResult(getCredentialResponse);
+                    public void onResult(GetCredentialResponse result) {
+                      source.trySetResult(result);
                     }
-
                     @Override
                     public void onError(@NotNull GetCredentialException e) {
-                      // For Android >= 14, we receive GetCredentialException
-                      // Just pass it through - the C# side will handle it
                       source.trySetException(e);
                     }
                   });
 
-          return source.getTask().onSuccessTask(new SuccessContinuation<GetCredentialResponse, AuthorizationResult>() {
-            @NonNull
-            @Override
-            public Task<AuthorizationResult> then(GetCredentialResponse getCredentialResponse) throws Exception {
-              try {
-                Credential credential = getCredentialResponse.getCredential();
-                Log.i(TAG, "credential.getType() : " + credential.getType());
+          Intent intent = new Intent(UnityPlayer.currentActivity, SignInActivity.class);
+          UnityPlayer.currentActivity.startActivity(intent);
 
-                GoogleIdTokenCredential googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.getData());
-                requestHandle.onAuthenticated(googleIdTokenCredential);
-              }
-              catch (Exception e) {
-                throw e;
-              }
+          return source.getTask().onSuccessTask(response -> {
+            Credential credential = response.getCredential();
+            GoogleIdTokenCredential googleIdToken = GoogleIdTokenCredential.createFrom(credential.getData());
+            requestHandle.onAuthenticated(googleIdToken);
 
-              AuthorizationRequest.Builder authorizationRequestBuilder = new AuthorizationRequest.Builder();
-              if (requestAuthCode && !Strings.isEmptyOrWhitespace(webClientId))
-                authorizationRequestBuilder.requestOfflineAccess(webClientId, forceRefreshToken);
+            AuthorizationRequest.Builder authRequestBuilder = new AuthorizationRequest.Builder();
+            if (requestAuthCode && !Strings.isEmptyOrWhitespace(webClientId))
+              authRequestBuilder.requestOfflineAccess(webClientId, forceRefreshToken);
 
-              int additionalCount = additionalScopes != null ? additionalScopes.length : 0;
-              List<Scope> scopes = new ArrayList<>(2 + additionalCount);
-              scopes.add(new Scope(Scopes.PROFILE));
-              if (requestEmail)
-                scopes.add(new Scope(Scopes.EMAIL));
-              if (additionalCount > 0) {
-                for (String scope : additionalScopes) {
-                  scopes.add(new Scope(scope));
-                }
-              }
-
-              if (!scopes.isEmpty())
-                authorizationRequestBuilder.setRequestedScopes(scopes);
-
-              return Identity.getAuthorizationClient(UnityPlayer.currentActivity).authorize(authorizationRequestBuilder.build());
+            int additionalCount = additionalScopes != null ? additionalScopes.length : 0;
+            List<Scope> scopes = new ArrayList<>(2 + additionalCount);
+            scopes.add(new Scope(Scopes.PROFILE));
+            if (requestEmail) scopes.add(new Scope(Scopes.EMAIL));
+            if (additionalCount > 0) {
+              for (String scope : additionalScopes) scopes.add(new Scope(scope));
             }
-          }).addOnFailureListener(requestHandle).addOnCanceledListener(requestHandle).addOnSuccessListener(new OnSuccessListener<AuthorizationResult>() {
-            @Override
-            public void onSuccess(AuthorizationResult authorizationResult) {
-              requestHandle.onAuthorized(authorizationResult);
-            }
-          }).addOnCompleteListener(new OnCompleteListener<AuthorizationResult>() {
-            @Override
-            public void onComplete(@NonNull Task<AuthorizationResult> _unused) {
-              cancellationSignal = null;
-            }
-          });
+            if (!scopes.isEmpty()) authRequestBuilder.setRequestedScopes(scopes);
+
+            return Identity.getAuthorizationClient(UnityPlayer.currentActivity).authorize(authRequestBuilder.build());
+          }).addOnFailureListener(requestHandle).addOnCanceledListener(requestHandle).addOnSuccessListener(requestHandle::onAuthorized);
         }
       };
     }
@@ -379,69 +321,34 @@ public class GoogleSignInHelper {
   }
 
   public static void cancel() {
-    if(isPending() && cancellationSignal != null){
-      cancellationSignal.cancel();
-      cancellationSignal = null;
-    }
-
+    SignInActivity.finishActivity();
     task = null;
   }
 
   @SuppressWarnings("deprecation")
   public static void signOut() {
     cancel();
-
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-      // Use legacy signOut for Android < 14
+    if (isUseSignInClient()) {
       if (signInClient != null) {
         signInClient.signOut()
-            .addOnSuccessListener(new OnSuccessListener<Void>() {
-              @Override
-              public void onSuccess(Void unused) {
-                logInfo("signOut (legacy)");
-              }
-            })
-            .addOnFailureListener(new OnFailureListener() {
-              @Override
-              public void onFailure(@NonNull Exception e) {
-                logError("signOut error (legacy): " + e.getMessage());
-              }
-            });
+            .addOnSuccessListener(unused -> logInfo("signOut (legacy)"))
+            .addOnFailureListener(e -> logError("signOut error (legacy): " + e.getMessage()));
       }
     } else {
-      // Use CredentialManager for Android >= 14
       CredentialManager.create(UnityPlayer.currentActivity).clearCredentialStateAsync(new ClearCredentialStateRequest(),
               new CancellationSignal(),
               TaskExecutors.MAIN_THREAD,
               new CredentialManagerCallback<Void, ClearCredentialException>() {
                 @Override
-                public void onResult(Void unused) {
-                  logInfo("signOut");
-                }
-
+                public void onResult(Void unused) { logInfo("signOut"); }
                 @Override
-                public void onError(@NonNull ClearCredentialException e) {
-                  logError(e.getMessage());
-                }
+                public void onError(@NonNull ClearCredentialException e) { logError(e.getMessage()); }
               });
     }
   }
 
   static final String TAG = GoogleSignInHelper.class.getSimpleName();
-
-  public static void logInfo(String msg) {
-    if (loggingEnabled) {
-      Log.i(TAG, msg);
-    }
-  }
-
-  public static void logError(String msg) {
-    Log.e(TAG, msg);
-  }
-
-  public static void logDebug(String msg) {
-    if (loggingEnabled) {
-      Log.d(TAG, msg);
-    }
-  }
+  public static void logInfo(String msg) { if (loggingEnabled) Log.i(TAG, msg); }
+  public static void logError(String msg) { Log.e(TAG, msg); }
+  public static void logDebug(String msg) { if (loggingEnabled) Log.d(TAG, msg); }
 }

@@ -49,7 +49,7 @@ namespace Google {
   /// </remarks>
   public class GoogleSignIn {
 
-#if !UNITY_ANDROID && !UNITY_IOS
+#if !UNITY_ANDROID && !UNITY_IOS && !UNITY_EDITOR && !UNITY_STANDALONE
   static GoogleSignIn() {
     Debug.LogError("This platform is not supported");
   }

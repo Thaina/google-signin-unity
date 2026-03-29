@@ -5,9 +5,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Net.Sockets;
 
 using UnityEngine;
 
@@ -57,7 +59,9 @@ namespace Google.Impl
       SessionState.EraseString(GoogleSignInCacheKey + "Code");
       SessionState.EraseString(GoogleSignInCacheKey);
 #else
-      Debug.LogError("Not implemented in standalone");
+      PlayerPrefs.DeleteKey(GoogleSignInCacheKey + "Code");
+      PlayerPrefs.DeleteKey(GoogleSignInCacheKey);
+      PlayerPrefs.Save();
 #endif
     }
 
@@ -67,6 +71,10 @@ namespace Google.Impl
 #if UNITY_EDITOR 
       string authCode = SessionState.GetString(GoogleSignInCacheKey + "Code",null);
       string json = SessionState.GetString(GoogleSignInCacheKey,null);
+#else
+      string authCode = PlayerPrefs.GetString(GoogleSignInCacheKey + "Code",null);
+      string json = PlayerPrefs.GetString(GoogleSignInCacheKey,null);
+#endif
       Pending = !string.IsNullOrEmpty(authCode) && !string.IsNullOrEmpty(json);
       if(Pending)
       {
@@ -96,45 +104,62 @@ namespace Google.Impl
           }
         });
       }
-#else
-      throw new NotImplementedException();
-#endif
       return new Future<GoogleSignInUser>(this);
     }
 
     static HttpListener BindLocalHostFirstAvailablePort()
     {
-      ushort minPort = 49215;
-#if UNITY_EDITOR_WIN
-      var listeners = IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners();
-      return Enumerable.Range(minPort, ushort.MaxValue - minPort).Where((i) => !listeners.Any((x) => x.Port == i)).Select((port) => {
-#elif UNITY_EDITOR_OSX
-      return Enumerable.Range(minPort, ushort.MaxValue - minPort).Select((port) => {
-#else
-      return Enumerable.Range(0,10).Select((i) => UnityEngine.Random.Range(minPort,ushort.MaxValue)).Select((port) => {
-#endif
-        try
+      int maxRetries = 10;
+      while (maxRetries-- > 0) 
+      {
+        try 
         {
+          int port;
+          using (var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)) 
+          {
+            socket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+            port = ((IPEndPoint)socket.LocalEndPoint).Port;
+          }
+
           var listener = new HttpListener();
-          listener.Prefixes.Add($"http://localhost:{port}/");
+          listener.Prefixes.Add($"http://{IPAddress.Loopback}:{port}/");
           listener.Start();
           return listener;
-        }
-        catch(System.Exception e)
+        } 
+        catch (Exception e) 
         {
-          Debug.LogException(e);
-          return null;
+          Debug.LogWarning($"Failed to bind to localhost, {maxRetries} retries remaining... Detail: {e.Message}");
         }
-      }).FirstOrDefault((listener) => listener != null);
+      }
+      
+      throw new Exception("Failed to bind to localhost.");
     }
 
     void SigningIn()
     {
       Pending = true;
       var httpListener = BindLocalHostFirstAvailablePort();
+      var state = GenerateRandomBase64Url(32);
+      var codeVerifier = GenerateRandomBase64Url(64);
+      var codeChallenge = GenerateCodeChallenge(codeVerifier);
+      
       try
       {
-        var openURL = "https://accounts.google.com/o/oauth2/v2/auth?" + Uri.EscapeUriString("scope=openid email profile&response_type=code&redirect_uri=" + httpListener.Prefixes.FirstOrDefault() + "&client_id=" + configuration.WebClientId);
+        var scopes = "openid email profile";
+        if (configuration.AdditionalScopes != null)
+        {
+          scopes += " " + string.Join(" ", configuration.AdditionalScopes);
+        }
+
+        var openURL = "https://accounts.google.com/o/oauth2/v2/auth"
+        + $"?client_id={Uri.EscapeDataString(configuration.WebClientId)}"
+        + $"&redirect_uri={Uri.EscapeDataString(httpListener.Prefixes.First())}"
+        + $"&response_type=code"
+        + $"&scope={Uri.EscapeDataString(scopes)}"
+        + $"&state={state}"
+        + $"&code_challenge={codeChallenge}"
+        + $"&code_challenge_method=S256";
+
         Debug.Log(openURL);
         Application.OpenURL(openURL);
       }
@@ -152,27 +177,34 @@ namespace Google.Impl
           var context = task.Result;
           var queryString = context.Request.Url.Query;
           var queryDictionary = System.Web.HttpUtility.ParseQueryString(queryString);
-          if(queryDictionary == null || queryDictionary.Get("code") is not string code || string.IsNullOrEmpty(code))
+          if (queryDictionary.Get("state") != state
+           || queryDictionary.Get("code") is not { } code || string.IsNullOrEmpty(code)) 
           {
             Status = GoogleSignInStatusCode.INVALID_ACCOUNT;
-
-            context.Response.StatusCode = 404;
-            context.Response.OutputStream.Write(Encoding.UTF8.GetBytes("Cannot get code"));
-            context.Response.Close();
+            SendHtmlResponse(context.Response, isSuccess: false);
             return;
           }
+          
+          SendHtmlResponse(context.Response, isSuccess: true);
 
-          context.Response.StatusCode = 200;
-          context.Response.OutputStream.Write(Encoding.UTF8.GetBytes("Can close this page"));
-          context.Response.Close();
-
-          string json = await HttpWebRequest.CreateHttp("https://www.googleapis.com/oauth2/v4/token").Post("application/x-www-form-urlencoded","code=" + code + "&client_id=" + configuration.WebClientId + "&client_secret=" + configuration.ClientSecret + "&redirect_uri=" + httpListener.Prefixes.FirstOrDefault() + "&grant_type=authorization_code").ContinueWith((task) => task.Result,taskScheduler);
+          string json = await HttpWebRequest.CreateHttp("https://www.googleapis.com/oauth2/v4/token").Post("application/x-www-form-urlencoded"
+          , $"code={code}"
+          + $"&client_id={configuration.WebClientId}"
+          + $"&client_secret={configuration.ClientSecret}"
+          + $"&redirect_uri={httpListener.Prefixes.First()}"
+          + $"&grant_type=authorization_code"
+          + $"&code_verifier={codeVerifier}"
+          ).ContinueWith(t => t.Result, taskScheduler);
 
           Result = await GetUserInfo(configuration,code,json,taskScheduler);
 
 #if UNITY_EDITOR 
           SessionState.SetString(GoogleSignInCacheKey,json);
           SessionState.SetString(GoogleSignInCacheKey + "Code",code);
+#else
+          PlayerPrefs.SetString(GoogleSignInCacheKey,json);
+          PlayerPrefs.SetString(GoogleSignInCacheKey + "Code",code);
+          PlayerPrefs.Save();
 #endif
 
           Status = GoogleSignInStatusCode.SUCCESS;
@@ -193,8 +225,77 @@ namespace Google.Impl
         finally
         {
           Pending = false;
+          
+          httpListener.Stop();
+          httpListener.Close();
         }
       },taskScheduler);
+    }
+
+    private string GenerateRandomBase64Url(int byteLength) 
+    {
+      var bytes = new byte[byteLength];
+      RandomNumberGenerator.Fill(bytes);
+      return Base64UrlEncodeNoPadding(bytes);
+    }
+
+    private string GenerateCodeChallenge(string codeVerifier) 
+    {
+      using var sha256 = SHA256.Create();
+      var       bytes  = sha256.ComputeHash(Encoding.ASCII.GetBytes(codeVerifier));
+      return Base64UrlEncodeNoPadding(bytes);
+    }
+
+    private string Base64UrlEncodeNoPadding(byte[] bytes) 
+    {
+      return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    }
+    
+    private void SendHtmlResponse(HttpListenerResponse response, bool isSuccess) 
+    {
+      var titleColor = isSuccess ? "#4CAF50" : "#F44336";
+      var titleContent = isSuccess ? "Authentication Successful!" : "Authentication Failed!";
+      var detail = isSuccess ? "You can now close this window and return to the game." : "Cannot get code.";
+      var statusCode = isSuccess ? 200 : 404;
+      
+      byte[] buffer = Encoding.UTF8.GetBytes($@"
+        <html>
+        <head>
+            <style>
+                :root {{
+                    color-scheme: light dark;
+                }}
+                body {{
+                    background-color: Canvas;
+                    color: CanvasText;
+                    font-family: system-ui, -apple-system, sans-serif;
+                    text-align: center;
+                    padding-top: 50px;
+                    transition: background-color 0.3s, color 0.3s;
+                }}
+                h1 {{
+                    color: {titleColor};
+                }}
+            </style>
+        </head>
+        <body>
+            <h1>{titleContent}</h1>
+            <p>{detail}</p>
+        </body>
+        </html>");
+
+      try 
+      {
+        response.StatusCode = statusCode;
+        response.ContentType = "text/html; charset=utf-8";
+        response.ContentLength64 = buffer.Length;
+        response.OutputStream.Write(buffer, 0, buffer.Length);
+        response.Close();
+      } 
+      catch 
+      { 
+        // Browser might close early
+      }
     }
 
 		static async Task<GoogleSignInUser> GetUserInfo(GoogleSignInConfiguration configuration,string authCode,string json,TaskScheduler taskScheduler)

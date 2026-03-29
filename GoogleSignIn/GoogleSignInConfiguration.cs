@@ -37,7 +37,7 @@ namespace Google {
 #endif
     /// <summary>Web client id associated with this app.</summary>
     /// <remarks>Required for requesting auth code or id token.</remarks>
-    public string WebClientId = null;
+    public string ClientId = null;
     /// <summary>Set to true for getting an auth code when authenticating.
     /// </summary>
     public bool RequestAuthCode = false;

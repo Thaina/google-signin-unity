@@ -152,7 +152,7 @@ namespace Google.Impl
         }
 
         var openURL = "https://accounts.google.com/o/oauth2/v2/auth"
-        + $"?client_id={Uri.EscapeDataString(configuration.WebClientId)}"
+        + $"?client_id={Uri.EscapeDataString(configuration.ClientId)}"
         + $"&redirect_uri={Uri.EscapeDataString(httpListener.Prefixes.First())}"
         + $"&response_type=code"
         + $"&scope={Uri.EscapeDataString(scopes)}"
@@ -190,7 +190,7 @@ namespace Google.Impl
 
           string json = await HttpWebRequest.CreateHttp("https://www.googleapis.com/oauth2/v4/token").Post("application/x-www-form-urlencoded"
           , $"code={code}"
-          + $"&client_id={configuration.WebClientId}"
+          + $"&client_id={configuration.ClientId}"
           + $"&client_secret={configuration.ClientSecret}"
           + $"&redirect_uri={httpListener.Prefixes.First()}"
           + $"&grant_type=authorization_code"

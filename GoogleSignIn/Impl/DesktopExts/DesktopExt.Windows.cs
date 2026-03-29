@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 using Debug = UnityEngine.Debug;
 
 namespace Google.Impl {
-    public static partial class EditorExt {
+    public static partial class DesktopExt {
         public static partial void TryBringGameToFront() {
             try {
                 var targetHWnd = Process.GetCurrentProcess().MainWindowHandle;

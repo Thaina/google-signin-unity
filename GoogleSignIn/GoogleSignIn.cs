@@ -86,7 +86,7 @@ namespace Google {
       get {
         if (theInstance == null) {
 #if UNITY_EDITOR || UNITY_STANDALONE
-          theInstance = new GoogleSignIn(new GoogleSignInImplEditor(Configuration));
+          theInstance = new GoogleSignIn(new GoogleSignInImplDesktop(Configuration));
 #elif UNITY_ANDROID || UNITY_IOS
           theInstance = new GoogleSignIn(new GoogleSignInImpl(Configuration));
 #else

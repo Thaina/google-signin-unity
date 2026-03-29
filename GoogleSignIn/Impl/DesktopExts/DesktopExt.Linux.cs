@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Debug = UnityEngine.Debug;
 
 namespace Google.Impl {
-    public static partial class EditorExt {
+    public static partial class DesktopExt {
         public static partial void TryBringGameToFront() {
             Task.Run(() => {
                 var windowName = ThreadSafeAppInfo.IsEditor ? "Unity" : ThreadSafeAppInfo.ProductName;

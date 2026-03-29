@@ -186,6 +186,7 @@ namespace Google.Impl
           }
           
           SendHtmlResponse(context.Response, isSuccess: true);
+          EditorExt.TryBringGameToFront();
 
           string json = await HttpWebRequest.CreateHttp("https://www.googleapis.com/oauth2/v4/token").Post("application/x-www-form-urlencoded"
           , $"code={code}"
@@ -337,7 +338,7 @@ namespace Google.Impl
 		}
 	}
 
-  public static class EditorExt
+  public static partial class EditorExt
   {
     public static Task<string> Post(this HttpWebRequest request,string contentType,string data,Encoding encoding = null)
     {
@@ -363,6 +364,21 @@ namespace Google.Impl
 
     public static string ReadToEnd(this Stream stream,Encoding encoding = null) => new StreamReader(stream,encoding ?? Encoding.UTF8).ReadToEnd();
     public static void Write(this Stream stream,byte[] data) => stream.Write(data,0,data.Length);
+    public static partial void TryBringGameToFront();
+  }
+
+  public static class ThreadSafeAppInfo {
+    public static bool IsEditor { get; private set; }
+    public static string ProductName { get; private set; }
+    public static string Identifier { get; private set; }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    private static void InitApplicationInfo() 
+    {
+      IsEditor    = Application.isEditor;
+      ProductName = Application.productName;
+      Identifier  = Application.identifier;
+    }
   }
 }
 

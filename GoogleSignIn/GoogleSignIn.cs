@@ -166,6 +166,7 @@ namespace Google {
     /// sign-in attempts will require the user to re-consent to the requested
     /// scopes.
     /// </remarks>
+    [Obsolete("Not supported anymore", true)]
     public void Disconnect() {
       impl.Disconnect();
     }

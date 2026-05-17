@@ -20,12 +20,13 @@ namespace Google.Impl {
 
                 cPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".c");
 
-                File.WriteAllText(cPath, @"#include <windows.h>
-#include <shellapi.h>
-#include <stdio.h>
-#include <stdlib.h>
+                File.WriteAllText(cPath, @"
+$include <windows.h>
+$include <shellapi.h>
+$include <stdio.h>
+$include <stdlib.h>
 
-#pragma comment(linker, ""/SUBSYSTEM:windows /ENTRY:mainCRTStartup"")
+$pragma comment(linker, ""/SUBSYSTEM:windows /ENTRY:mainCRTStartup"")
 
 typedef struct {
     DWORD pid;
@@ -92,7 +93,7 @@ int main() {
 
     LocalFree(argv);
     return 0;
-}");
+}".Replace('$', '#'));
 
                 EditorUtility.DisplayProgressBar("Building Relay", "Compiling Exe (gcc)...", 0.7f);
 

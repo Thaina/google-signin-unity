@@ -51,8 +51,9 @@ namespace Google.Impl {
 
         public void OnGetCodeSuccess() {
             SendHtmlResponse(true);
-            
+#if UNITY_EDITOR || UNITY_STANDALONE
             DesktopExt.TryBringGameToFront();
+#endif
         }
 
         public void Dispose() {

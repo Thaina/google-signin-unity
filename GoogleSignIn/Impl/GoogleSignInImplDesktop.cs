@@ -312,9 +312,12 @@ namespace Google.Impl
     {
       IsEditor    = Application.isEditor;
       ProductName = Application.productName;
-      Identifier  = Application.isEditor ? $"com.{Clean(Application.companyName)}.{Clean(Application.productName)}" : Application.identifier;
+      Identifier  = Application.identifier;
+      if (Application.isEditor || string.IsNullOrEmpty(Identifier)) {
+        Identifier = $"com.{Clean(Application.companyName)}.{Clean(Application.productName)}";
+      }
 
-      string Clean(string part) => Regex.Replace(part, @"[^a-zA-Z0-9]", "");
+      static string Clean(string part) => Regex.Replace(part, @"[^a-zA-Z0-9]", "");
     }
   }
 }

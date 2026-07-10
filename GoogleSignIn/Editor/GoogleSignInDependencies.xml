@@ -13,4 +13,12 @@
   <iosPods>
     <iosPod name="GoogleSignIn" version="~> 9.0.0" bitcodeEnabled="false" />
   </iosPods>
+
+  <!-- Swift Package Manager dependency, used instead of the iosPod above
+    on EDM4U 1.2.187+ (replacesPod prevents double inclusion). -->
+  <remoteSwiftPackage url="https://github.com/google/GoogleSignIn-iOS"
+                      version="9.0.0"
+                      upToNextMajor="true">
+    <swiftPackage name="GoogleSignIn" replacesPod="GoogleSignIn"/>
+  </remoteSwiftPackage>
 </dependencies>

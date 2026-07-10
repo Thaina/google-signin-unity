@@ -10,7 +10,7 @@
     ],
     "dependencies": {
         "com.unity.nuget.newtonsoft-json": "3.2.1",
-		"com.google.external-dependency-manager": "1.2.175"
+		"com.google.external-dependency-manager": "1.2.187"
     },
     "samples": [
         {

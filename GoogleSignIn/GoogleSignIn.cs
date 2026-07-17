@@ -49,7 +49,7 @@ namespace Google {
   /// </remarks>
   public class GoogleSignIn {
 
-#if !UNITY_ANDROID && !UNITY_IOS
+#if !UNITY_ANDROID && !UNITY_IOS && !UNITY_EDITOR && !UNITY_STANDALONE
   static GoogleSignIn() {
     Debug.LogError("This platform is not supported");
   }
@@ -86,7 +86,7 @@ namespace Google {
       get {
         if (theInstance == null) {
 #if UNITY_EDITOR || UNITY_STANDALONE
-          theInstance = new GoogleSignIn(new GoogleSignInImplEditor(Configuration));
+          theInstance = new GoogleSignIn(new GoogleSignInImplDesktop(Configuration));
 #elif UNITY_ANDROID || UNITY_IOS
           theInstance = new GoogleSignIn(new GoogleSignInImpl(Configuration));
 #else
@@ -166,6 +166,7 @@ namespace Google {
     /// sign-in attempts will require the user to re-consent to the requested
     /// scopes.
     /// </remarks>
+    [Obsolete("Not supported anymore", true)]
     public void Disconnect() {
       impl.Disconnect();
     }

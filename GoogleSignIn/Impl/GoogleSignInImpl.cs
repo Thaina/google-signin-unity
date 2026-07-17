@@ -38,7 +38,7 @@ namespace Google.Impl {
 				scopes.AddRange(configuration.AdditionalScopes);
 			}
 			GoogleSignIn_Configure(SelfPtr(), configuration.UseGameSignIn,
-										configuration.WebClientId,
+										configuration.ClientId,
 										configuration.RequestAuthCode,
 										configuration.ForceTokenRefresh,
 										configuration.RequestEmail,

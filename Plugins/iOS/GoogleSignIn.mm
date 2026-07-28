@@ -337,7 +337,7 @@ static size_t CopyNSString(NSString *src, char *dest, size_t len) {
     strncpy(dest, string, len);
     return len;
   }
-  return src ? src.length + 1 : 0;
+  return src ? [src lengthOfBytesUsingEncoding:NSUTF8StringEncoding] + 1 : 0;
 }
 
 size_t GoogleSignIn_GetServerAuthCode(SignInResult *result, char *buf,
